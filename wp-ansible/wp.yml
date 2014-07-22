@@ -1,0 +1,89 @@
+---
+- hosts: elserverat
+  tasks:
+    - name: install wp required pkgs
+      action: apt pkg={{item}} state=installed update_cache=true
+      with_items:
+      - nginx
+      - mysql-server
+      - php5-fpm
+      - php5-mysql
+      - php5-gd
+      - php5-mcrypt
+      - php5-memcached
+      - python-mysqldb 
+
+
+    - name: fpm configs 1-cgi fix pathinfo
+      lineinfile: dest=/etc/php5/fpm/php.ini regexp='^;cgi.fix_pathinfo=1' line='cgi.fix_pathinfo=0' state=present backrefs=yes
+    - name: 2-listen on unix socket
+      lineinfile: dest=/etc/php5/fpm/pool.d/www.conf regexp='listen = 127.0.0.1:9000' line='listen = /var/run/php5-fpm.sock' state=present backrefs=yes
+    - name: edit permissions 1-owner
+      lineinfile: dest=/etc/php5/fpm/pool.d/www.conf regexp='^;listen.owner' line='listen.owner www-data' state=present backrefs=yes
+    - name: 2-group
+      lineinfile: dest=/etc/php5/fpm/pool.d/www.conf regexp='^;listen.group' line='listen.group www-data' state=present backrefs=yes
+    - name: 3-file permissions
+      lineinfile: dest=/etc/php5/fpm/pool.d/www.conf regexp='^;listen.mode' line='listen.mode=0660' state=present backrefs=yes
+
+
+
+    - name: nginx configs (copy host config file)
+      template: src=/root/ans/wpdefault dest=/etc/nginx/sites-available/default mode=0644
+
+
+    - name: mysql configs 1-set root pwd
+      mysql_user: login_user=root login_password={{mysql_root_pwd}} user=root password={{mysql_root_pwd}}
+    - name: 2-create wp database
+      mysql_db:   login_user=root login_password={{mysql_root_pwd}} name={{wp_db_name}} state=present
+    - name: 3-create wp privileged user
+      mysql_user: login_user=root login_password={{mysql_root_pwd}} name={{wp_db_username}} password={{wp_db_userpwd}} priv={{wp_db_name}}.*:ALL host=localhost state=present
+
+
+    - name: check if wp is installed
+      command: ls /usr/share/nginx/wordpress
+      register: result
+      ignore_errors: True
+
+    - name: installing wp
+      command: 'wget http://wordpress.org/latest.tar.gz'
+      when: result|failed
+
+    - name: untar,unzip it
+      command: 'tar xzf latest.tar.gz'
+      when: result|failed
+
+    - name: copy into host root dir
+      command: 'cp -R wordpress/ /usr/share/nginx/'
+      when: result|failed
+
+    - name: remove uneeded files and directories
+      command: 'rm -rf wordpress latest.tar.gz'
+      when: result|failed
+
+    - name: change ownership to nginx user and group
+      command: 'chown www-data:www-data /usr/share/nginx/wordpress/'
+      when: result|failed
+
+
+    - name: copy wp-config.php file
+      template: src=/root/ans/wp-config.php dest=/usr/share/nginx/wordpress mode=0644
+
+
+
+    - name: restart nginx
+      service: name=nginx state=reloaded
+    - name: restart fpm
+      service: name=php5-fpm state=reloaded
+
+
+
+#    notify:
+#    - start nginx
+#    - start fpm
+
+
+#  handlers:
+#    - name: start nginx
+#      service: name=nginx state=started
+#    - name: start fpm
+#      service: name=php5-fpm state=started

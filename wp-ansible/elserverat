@@ -1,0 +1,7 @@
+---
+mysql_root_pwd: 1991
+wp_db_name: wordpress
+wp_db_username: wordpress
+wp_db_userpwd: wordpress
+hostname: wpansible.com
+
