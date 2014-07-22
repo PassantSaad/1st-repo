@@ -56,7 +56,7 @@
       command: 'cp -R wordpress/ /usr/share/nginx/'
       when: result|failed
 
-    - name: remove uneeded files and directories
+    - name: remove unneeded files and directories
       command: 'rm -rf wordpress latest.tar.gz'
       when: result|failed
 
